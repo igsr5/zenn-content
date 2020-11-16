@@ -1,9 +1,9 @@
 ---
 title: "WPプラグイン「All-in-One WP Migration」を使って簡単にWordPressをデプロイする"
-emoji: "📑"
+emoji: "⚔️"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: []
-published: false
+topics: ["wordpress","php","all-in-one-wordpress-migration","deploy"]
+published: true
 ---
 前回の記事でAWSを用いてWordPressを立ち上げたので今回は既存WordPressサイトをそちらに移していきます。
 **前回の記事はこちら**
