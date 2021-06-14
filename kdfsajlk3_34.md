@@ -2,7 +2,7 @@
 title: "アルゴリズムとデータ構造【探索・ソート】"
 emoji: "🌊"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: ['sort','algorizum']
+topics: ['sort', 'algorizum']
 published: true
 ---
 ## データ構造
