@@ -1,5 +1,5 @@
 ---
-title: "OAuth2.0 / 認可コードフロー / トークン / OAuthにおけるCSRF" / 疑問点"
+title: "OAuth2.0 / 認可コードフロー / トークン / OAuthにおけるCSRF / 疑問点"
 emoji: "📘"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ['oauth2.0', 'oauth', 'access-token', 'csrf', 'serverside']
