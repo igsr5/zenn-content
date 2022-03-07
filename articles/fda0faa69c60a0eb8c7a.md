@@ -3,7 +3,7 @@ title: "WPプラグイン「All-in-One WP Migration」を使って簡単にWordP
 emoji: "⚔️"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["wordpress","php","all-in-one-wordpress-migration","deploy"]
-published: true
+published: false
 ---
 前回の記事でAWSを用いてWordPressを立ち上げたので今回は既存WordPressサイトをそちらに移していきます。
 **前回の記事はこちら**

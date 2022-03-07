@@ -5,6 +5,7 @@ type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ['oauth2.0', 'oauth', 'access-token', 'csrf', 'serverside']
 published: true
 ---
+自分用ノート。（この記事の内容をみて勉強しない方がいいです）
 ## OAuth2.0とは
 複数のWebサービスを連携して動作させる仕組み。
 
