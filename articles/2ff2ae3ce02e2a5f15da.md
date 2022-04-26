@@ -1,9 +1,9 @@
 ---
 title: "GoのS3 ダウンロード処理で知っておくと良いこと - バックエンドパフォーマンス改善"
-emoji: "😸"
+emoji: "🍀"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["golang", "s3", "io", "bufio", "sync"]
-published: false
+published: true
 ---
 
 こんにちは、[@igsr5](https://twitter.com/igsr5_) です。普段はある高専の情報科に通いながら、[Wantedly, inc](https://www.wantedly.com/companies/wantedly) で長期インターンをしています。興味領域はフロント・バックエンド、インフラで、最近は業務でもっぱらGoを書いています。今回はGoのパフォーマンスチューニングの話です。
