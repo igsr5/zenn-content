@@ -6,7 +6,7 @@ topics: ["golang", "s3", "io", "bufio", "sync"]
 published: false
 ---
 
-こんにちは、[@igsr5](https://twitter.com/igsr5_) です。普段はある高専の情報科に通いながら、[Wantedly, inc](https://www.wantedly.com/companies/wantedly) で長期インターンをしています。興味領域はフロント・バックエンド、インフラで、最近は業務でもっぱらGoを書いています。今日はGoのパフォーマンスチューニングの話です。
+こんにちは、[@igsr5](https://twitter.com/igsr5_) です。普段はある高専の情報科に通いながら、[Wantedly, inc](https://www.wantedly.com/companies/wantedly) で長期インターンをしています。興味領域はフロント・バックエンド、インフラで、最近は業務でもっぱらGoを書いています。今回はGoのパフォーマンスチューニングの話です。
 
 ## 対象読者
 - aws-sdk-go(aws-sdk-go-v2)[^1] で s3 ダウンロード処理のパフォーマンス改善を行いたい人
@@ -18,6 +18,13 @@ published: false
 
 内部で s3 ダウンロードが行われるバックエンドAPI などを考えたとき、
 
+```go
+// 1. Downloader の作成
+downloader := s3manager.NewDownloader(sess, func(d *s3manager.Downloader) {
+        // + ここを追加
+        d.BufferProvider = s3manager.NewPooledBufferedWriterReadFromProvider(5 * 1024 * 1024) // 5MB
+})
+```
 - aws-sdk-go/s3manager で `Downloader.BufferProvider` に `PooledBufferdWriterReadFromProvider` を指定すると、
   - 平均的なダウンロード処理速度が2, 3倍早くなる
   - ダウンロード処理の全体的なレイテンシが安定する
@@ -27,7 +34,7 @@ published: false
 
 
 ## 改善結果
-こういったパフォーマンス改善の記事は具体的な改善結果を先に載せた方がテンションが上がると思うので初めに紹介します。赤い線より左側がパフォーマンス改善後の測定値です。
+こういったパフォーマンス改善の記事は具体的な改善結果を先に載せた方がテンションが上がると思うので初めに紹介します。赤い線の右側がパフォーマンス改善後の測定値です。
 
 ![](https://storage.googleapis.com/zenn-user-upload/dff7f164f1d3-20220425.png)
 *内部でS3ダウンロード処理を行っているAPIのレイテンシ*
@@ -61,7 +68,7 @@ downloader.Download(
                 Key:    aws.String("image.png"),
         })
 ```
-上記のような処理を考えたとき、`NewDownloader` の呼び出し時にこのように初期設定を与えてあげるだけです。
+上記のような処理を考えたとき、`NewDownloader` の呼び出し時にこのような初期設定を与えてあげるだけです。
 
 ```go
 // 1. Downloader の作成
@@ -90,7 +97,7 @@ downloader := s3manager.NewDownloader(sess, func(d *s3manager.Downloader) {
 :::message
 先ほどから「 `sync.Pool` を利用することによってメモリを効率的に...」と書いていますが、ここで少しだけ `sync.Pool` の説明をしておきます。
 
-syncパッケージは Go 標準パッケージの一つで非同期処理に関連する機能を提供します。その中でも `sync.Pool` は複数のgoroutine間で使えるバッファプールを実現できます。バッファプールを用いると、「事前にある程度のリソースを確保」「それ以降はそのリソースを取得・解放を繰り返して使い回す」ので基本的にリソースの調達に時間がかかる処理はパフォーマンスが向上します。
+syncパッケージは Go 標準パッケージの一つで非同期処理に関連する機能を提供します。その中でも `sync.Pool` は複数のgoroutine間で使えるバッファプールを実現できます。バッファプールを用いると、「事前にある程度のリソースを確保」「それ以降はそのリソースを取得・解放を繰り返して使い回す」ので基本的にリソースの調達に時間がかかる処理に対してはパフォーマンスの向上が期待できます。
 例えば今回の記事だとs3ダウンロード毎に大きなサイズのメモリ割り当てが発生していたので、事前にメモリ割り当てを済ませておくことでパフォーマンスを改善させることができました。
 :::
 
@@ -154,7 +161,7 @@ syncパッケージは Go 標準パッケージの一つで非同期処理に関
 ### `io.Copy` の挙動
 ここまでの話で S3 ダウンロードの処理性能を改善するためには `io.Copy` の処理性能を改善すれば良いことが分かりました。
 
-ここで一旦 `io.Copy` の挙動についてこの先の話に必要になるため説明しておきます。`io.Copy` のコードを実際に見てみましょう。
+ここで一旦 `io.Copy` の挙動をこの先の話に必要になるため説明しておきます。`io.Copy` のコードを実際に見てみましょう。
 
 ```go
 // https://pkg.go.dev/io#Copy
@@ -199,7 +206,7 @@ func copyBuffer(dst Writer, src Reader, buf []byte) (written int64, err error) {
     - 実際には `io.Read` で一旦 `[]byte` にデータを読み込んで、その `[]byte` を `io.Write` で dst に書き込んでいる
     - これが `io.Copy` のデフォルトの処理
 
-今回のパフォーマンス改善で大事なのは 1, 2 のステップです。何をしているかを一言で説明すると「デフォルトの `io.Copy` の挙動を自実装に置き換える」です(デフォルトの `io.Copy` の挙動とは 3 で説明したもの)。詳しくは後述しますが、これらの仕組みを使って`io.Copy`を自分の都合の良い挙動にすることができます。
+今回のパフォーマンス改善で大事なのは 1, 2 のステップです。何をしているかを一言で説明すると「デフォルトの `io.Copy` の挙動を他実装に置き換える」です(デフォルトの `io.Copy` の挙動とは 3 で説明したもの)。詳しくは後述しますが、これらの仕組みを使って`io.Copy`を自分の都合の良い挙動にすることができます。
 
 :::message
 https://pkg.go.dev/io#ReaderFrom
@@ -208,20 +215,22 @@ type ReaderFrom interface {
 	ReadFrom(r Reader) (n int64, err error)
 }
 ```
-`io.ReadFrom`とは`io.Reader`型を引数にとり、そのReaderからデータをEOFになるまで読み込む関数です。`io.Writer`インターフェースでこの関数を実装すると `io.Copy` で代わりにその関数を実行することができます。
+`io.ReadFrom`とは`io.Reader`型を引数にとり、そのReaderからデータをEOFになるまで読み込む関数です。`io.Writer`インターフェースでこの関数を実装すると `io.Copy` で代わりにその関数を実行することができます。(`io.WriteTo`も `io.Reader`, `io.Writer`の関係が逆になるだけなので説明は割愛します。)
 :::
 
 
 ### `io.Copy` のパフォーマンスチューニング
-さて`io.Copy` のボトルネックについてもう少し具体的に考えてみましょう。先ほどのpprof出力で実行時間の大きいものから順に改善できそうな関数を見ていくと `runtime.makesilce()`が見つかります。(スクショだと見切れてました、、`s3manager.(*dlchunk).Write`の下にあります)
+さて`io.Copy` のボトルネックについてもう少し具体的に考えてみましょう。先ほどのpprof出力で実行時間の大きいものから順に改善できそうな関数を見ていくと `runtime.makesilce()`が見つかります。
+![](https://storage.googleapis.com/zenn-user-upload/64dfd567fe77-20220426.png)
+*`runtime.makeslice()` - `s3manager.(*dlchunk).Write`の下にある*
 
-`makeslice`とは「`io.Copy` 内で使用するバッファのメモリ確保」にあたります。処理毎にメモリ確保を行うのは無駄なので出来れば`sync.Pool` 的な機能で効率的にメモリを使いまわしたいです。先ほど説明しましたが`io.Copy` ではそういった時に自実装の `ReadFrom` (or `WriteTo`) で挙動を上書きすることができるのでこの対応を考えていきましょう。
+ここでの `makeslice` は「`io.Copy` 内で使用するバッファのメモリ確保」にあたります。処理毎にメモリ確保を行うのは無駄なので出来れば`sync.Pool` 的な機能で効率的にメモリを使いまわしたいです。先ほど説明しましたが`io.Copy` ではそういった時に `ReadFrom` (or `WriteTo`) で挙動を上書きすることができるのでこの対応を考えていきましょう。
 
 ### aws-sdk-go と io パッケージ
-`io.Copy` で利用する `io.ReadFrom`実装は自分で用意することもできますが、実は aws-sdk-go の s3manager パッケージには Download 呼び出し時の `io.Copy` に `ReadFrom` を指定するための仕組みと `sync.Pool` でバッファを効率的に扱う`ReadFrom`実装が既に用意されています。
+`io.Copy` で利用する `io.ReadFrom`実装は自分で用意することもできますが、実は aws-sdk-go の s3manager パッケージには Download 呼び出し時の `io.Copy` に `ReadFrom` を指定するための仕組みと `sync.Pool` でバッファのメモリ空間を効率的に扱う`ReadFrom`実装が既に用意されています。
 
 #### Download 呼び出し時の `io.Copy` に `ReadFrom` を指定できる仕組み
-下のコードは s3manager.Downloader の struct 定義です。 `BufferProvider` が Download 時に呼び出される `io.Copy` に `ReadFrom` を指定できる仕組みに相当します。
+下のコードは s3manager.Downloader の struct 定義です。**`BufferProvider` が Download 時に呼び出される `io.Copy` に `ReadFrom` を指定できる仕組みに相当します。**
 
 ```go
 // https://github.com/aws/aws-sdk-go/blob/v1.43.45/service/s3/s3manager/download.go#L43-L73
@@ -255,10 +264,10 @@ type WriterReadFromProvider interface {
 }
 ```
 
-最終的に `WriterReadFromProvider.GetReadFrom()`が返す`WriterReadFrom`の実装が`io.Copy`時の `io.Writer`として使われるようになります。（ややこしいですね）
+`WriterReadFromProvider.GetReadFrom()`が返す`WriterReadFrom`の実装が`io.Copy`時の `io.Writer`として使われるようになります。
 
 
-#### `sync.Pool` でバッファを効率的に扱う`ReadFrom`実装
+#### `sync.Pool` でバッファのメモリ空間を効率的に扱う`ReadFrom`実装
 正確には前節で説明した `WriterReadFromProvider` 実装です。下が実際のコードです。
 
 ```go
@@ -294,11 +303,48 @@ func (p *PooledBufferedReadFromProvider) GetReadFrom(writer io.Writer) (r Writer
 }
 ```
 
-`NewPooledBufferedWriterReadFromProvider` の中で `sync.Pool{New: ...}` が呼び出されているのがポイントです。`GetReadFrom` では `WriterReadFrom` の値を毎回生成するのではなくプールから取り出して返すことでメモリのアロケーション数を抑えています。
+:::details bufferedReadFrom の実装
+
+```go
+// https://github.com/aws/aws-sdk-go/blob/v1.43.45/service/s3/s3manager/writer_read_from.go#L11-L39
+
+// WriterReadFrom defines an interface implementing io.Writer and io.ReaderFrom
+type WriterReadFrom interface {
+	io.Writer
+	io.ReaderFrom
+}
+
+// WriterReadFromProvider provides an implementation of io.ReadFrom for the given io.Writer
+type WriterReadFromProvider interface {
+	GetReadFrom(writer io.Writer) (w WriterReadFrom, cleanup func())
+}
+
+type bufferedWriter interface {
+	WriterReadFrom
+	Flush() error
+	Reset(io.Writer)
+}
+
+type bufferedReadFrom struct {
+	bufferedWriter
+}
+
+func (b *bufferedReadFrom) ReadFrom(r io.Reader) (int64, error) {
+	n, err := b.bufferedWriter.ReadFrom(r)
+	if flushErr := b.Flush(); flushErr != nil && err == nil {
+		err = flushErr
+	}
+	return n, err
+}
+```
+
+:::
+
+`NewPooledBufferedWriterReadFromProvider` の中で `sync.Pool{New: ...}` によって`bufferedReadFrom`をプールに格納しているのがポイントです。`GetReadFrom` では `WriterReadFrom` の値を毎回生成するのではなく`bufferedReadFrom`をプールから取り出して返すことでメモリのアロケーションを抑えています。
 
 ### `PooledBufferedWriterReadFromProvider` 利用後の pprof
 
-前節で aws-sdk-go/s3manager の `Downloader.BufferProvider` と `NewPooledBufferedWriterReadFromProvider` を利用すればs3ダウンロード処理内の`io.Copy`で利用するメモリを`sync.Pool`で使いまわせることを説明しました。では実際にそれらの関数でコードを更新して再度pprofで測定してみましょう。
+前章で aws-sdk-go/s3manager の `Downloader.BufferProvider` と `NewPooledBufferedWriterReadFromProvider` を利用すれば、s3ダウンロード処理時に`io.Copy`で利用するメモリを`sync.Pool`で使いまわせることを説明しました。では実際にそれらの関数を利用して再度pprofで測定してみましょう。
 
 :::details 利用したコード
 エラー処理は省略しています。S3 ダウンロード処理をループさせながら pprof でプロファイルを取得できるようにしています。
@@ -350,12 +396,12 @@ func (p *PooledBufferedReadFromProvider) GetReadFrom(writer io.Writer) (r Writer
 
 `io.Copy`の内部で`s3manager.(*bufferedReadFrom).ReadFrom`が実行されていることが確認できます。`makeslice`の表示はなくなりDownload全体の実行時間は **1.37 s** から **510 ms** にまで改善しています。(実際にはメモリのアロケーションが最適化されただけでなく bufio パッケージの `ReadFrom`実装が利用されるようになったのもパフォーマンス改善につながっていそうですが、、)
 
-また、パフォーマンス改善後に本番環境で取得したメトリクスからも GC の発生が極端に減少しているのでメモリのアロケーションを最適化できたと言えそうです。(記事冒頭の改善結果より)
+また、パフォーマンス改善後に本番環境で取得したメトリクスからも GC の発生が極端に減少しているのでメモリの利用を最適化できたと言えそうです。(記事冒頭の改善結果より)
 
 ## まとめ
 この記事ではGoでs3ダウンロード処理のパフォーマンス改善を行う方法とボトルネック調査の過程を紹介しました。かなりお手軽にダウンロード処理の性能を上げることができたのでs3ダウンロード関連でパフォーマンス改善を行いたい人はやってみるといいかもしれません。
 
-しかし実際にパフォーマンス改善を行う際は「何が、どういう状況でボトルネックになっているのか」「そのボトルネックに対してどういったアプローチを取れるのか」が大切です。今回の記事の内容では私たちが施策をおこなったAPIサーバはサイズの重たいファイルをS3から頻繁にダウンロードしていたため、ダウンロード処理時のメモリ最適化で処理性能を改善することができました。
+しかし実際にパフォーマンス改善を行う際は **「何が、どういう状況でボトルネックになっているのか」「そのボトルネックに対してどういったアプローチを取れるのか」が大切**です。今回の記事の内容で言うと、私たちが施策をおこなったAPIサーバが重たいファイルをS3から頻繁にダウンロードしていたため、ダウンロード処理時のメモリ最適化で処理性能を改善することができました。
 
 置かれている状況が違えば、ボトルネックやその対応も変わってくるはずなのでシステム監視ツールやpprof、ベンチマークなどで適切に計測しながら施策を打っていくのが良いでしょう。
 
