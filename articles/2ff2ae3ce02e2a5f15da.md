@@ -6,7 +6,7 @@ topics: ["golang", "s3", "io", "bufio", "sync"]
 published: true
 ---
 
-こんにちは、[@igsr5](https://twitter.com/igsr5_) です。普段はある高専の情報科に通いながら、[Wantedly, inc](https://www.wantedly.com/companies/wantedly) で長期インターンをしています。興味領域はフロント・バックエンド、インフラで、最近は業務でもっぱらGoを書いています。今回はGoのパフォーマンスチューニングの話です。
+こんにちは、[@igsr5](https://twitter.com/igsr5_) です。普段はある高専の情報科に通いながら、[Wantedly, Inc.](https://www.wantedly.com/companies/wantedly) で長期インターンをしています。興味領域はフロント・バックエンド、インフラで、最近は業務でもっぱらGoを書いています。今回はGoのパフォーマンスチューニングの話です。
 
 ## 対象読者
 - aws-sdk-go(aws-sdk-go-v2)[^1] で s3 ダウンロード処理のパフォーマンス改善を行いたい人
