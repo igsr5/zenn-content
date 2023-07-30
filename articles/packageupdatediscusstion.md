@@ -6,8 +6,6 @@ topics: ["package", "update"]
 published: true
 ---
 
-# パッケージアップデートの目的は事業の継続性の確保と長期的なコスト(リスク)削減のためである
-
 本ブログは日頃筆者がパッケージアップデートという活動に関して思っていることを書き出したブログです。
 ちなみに筆者は[こういう](https://igsr5.github.io/my-resume/)ものです (Wantedly, Inc. 所属)。
 
