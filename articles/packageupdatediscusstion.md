@@ -3,7 +3,7 @@ title: "パッケージアップデートの目的は事業の継続性の確保
 emoji: "📦"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["package", "update"]
-published: true
+published: false
 ---
 
 本ブログは日頃筆者がパッケージアップデートという活動に関して思っていることを書き出したブログです。
